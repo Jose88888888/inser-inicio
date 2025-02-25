@@ -14,3 +14,8 @@ const functions = require("./functions");
 app.get("/api/select/actividades/:table", functions.selectAll);
 app.get("/api/actividades/:table/:tipo", functions.selectBytipo);
 app.post("/api/informeactividad/", functions.insertinfoacti);
+
+
+app.listen(3000, (error)=>{
+    console.log("puerto 3000");
+});

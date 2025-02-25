@@ -1,31 +1,30 @@
-require('dotenv').config();
+require("dotenv").config();
 const sql = require("mssql");
 
-// Configuración de la base de datos
 const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
+  server: "127.0.0.1",
   database: process.env.DB_DATABASE,
-  port: parseInt(process.env.DB_PORT),
+  port: 1434,  // SQL Server Express debe estar configurado en este puerto
   options: {
     encrypt: false, // Cambia a true si usas Azure SQL
-    trustServerCertificate: true, // Requerido en algunas configuraciones
+    trustServerCertificate: true,
   },
 };
 
-// Función para conectar a la base de datos
-async function connectDB() {
+
+async function testConnection() {
   try {
-    await sql.connect(dbConfig);
-    console.log("Conectado a SQL Server");
+    console.log("Intentando conectar a:", dbConfig);
+    return await sql.connect(dbConfig);
+    console.log("✅ Conectado exitosamente a SQL Server Express");
   } catch (err) {
-    console.error("Error al conectar a la base de datos", err);
+    console.error("❌ Error al conectar a la base de datos:", err);
   }
 }
 
-connectDB();
 
-module.exports = {
-    query: (text, params) => pool.query(text, params)
-};
+module.exports={
+  testConnection
+}
