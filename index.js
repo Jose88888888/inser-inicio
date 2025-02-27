@@ -14,12 +14,14 @@ const functions = require("./functions");
 app.get("/api/select/actividades/:table", functions.selectAll);
 app.get("/api/actividades/:table/:tipo", functions.selectBytipo);
 app.post("/api/informeactividad/", functions.insertinfoacti);
+app.post("/api/informes", functions.inserinforme);
 app.post("/api/login", functions.auntenlogin);
 app.post("/api/register", functions.registrarUsuario);
 
 
 
+app.get("/prueba", functions.prueba);
 
-app.listen(3000, (error)=>{
+app.listen(3000 , (error)=>{
     console.log("puerto 3000");
 });

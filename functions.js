@@ -21,6 +21,8 @@ async function selectAll(req, res) {
 }
 
 
+
+
 async function selectBytipo(req, res) {
     const { table, tipo } = req.params;
 
@@ -38,6 +40,9 @@ async function selectBytipo(req, res) {
         res.status(500).send("Internal Server Error");
     }
 }
+
+
+
 
 async function insertinfoacti(req, res) {
     const { valor, evidencia, observaciones } = req.body;
@@ -63,6 +68,35 @@ async function insertinfoacti(req, res) {
         res.status(500).send("Internal Server Error");
     }
 }
+
+
+
+async function inserinforme(req, res){
+    const{id_usuario, cuatrimestre, parcial, fecha, estatus} = req.body;
+
+    try{
+        const pool = await testConnection();
+
+        const result = await pool.request()
+        .input ('cuatrimestre', sql.NVarChar, cuatrimestre)
+        .input ('parcial', sql.Int, parcial)
+        .input ('fecha', sql.DateTime, fecha)
+        .input ('status', sql.NVarChar, estatus)
+        .query(`
+            INSERT INTO informe (cuatrimestre, parcial, fecha, status) 
+            OUTPUT INSERTED.id
+            VALUES (@cuatrimestre, @parcial, @fecha, @status)
+        `);
+
+        res.json({ message: "ok", id: result.recordset[0].id });
+    } catch (err) {
+        console.error("❌ Error en la inserción:", err);
+        res.status(500).send("Internal Server Error");
+    }
+}
+        
+
+
 
 async function auntenlogin(req, res) {
     const { empleado, password } = req.body;
@@ -93,6 +127,25 @@ async function auntenlogin(req, res) {
         res.status(500).json({ error: "Error en el servidor" });
     }
 }
+
+
+
+
+
+
+async function prueba(req, res){
+    const hash1 = await bcrypt.hash("BCasillas", 10);
+
+    const hash2 = await bcrypt.hash("BCasillas", 10);
+
+    console.log("hasg1", hash1);
+    console.log("hasg2", hash2);
+    const result= await bcrypt.compare("BCasillas", hash1);
+    console.log("result", result);
+    res.json({});
+}
+
+
 
 
 
@@ -175,6 +228,8 @@ module.exports = {
     selectAll,
     selectBytipo,
     insertinfoacti,
+    inserinforme,
     auntenlogin,
-    registrarUsuario
+    registrarUsuario,
+    prueba
 }
