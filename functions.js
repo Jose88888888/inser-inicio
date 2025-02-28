@@ -71,37 +71,59 @@ async function insertinfoacti(req, res) {
 
 
 
-async function inserinforme(req, res){
-    const{id_usuario, cuatrimestre, parcial, fecha, estatus} = req.body;
+async function inserinforme(req, res) {
+    const { id_usuario, cuatrimestre, parcial, fecha, estatus } = req.body;  
 
-    try{
+    if (!id_usuario) {
+        return res.status(400).json({ message: "id_usuario es requerido" });
+    }
+
+    try {
         const pool = await testConnection();
 
-        const result = await pool.request()
-        .input ('cuatrimestre', sql.NVarChar, cuatrimestre)
-        .input ('parcial', sql.Int, parcial)
-        .input ('fecha', sql.DateTime, fecha)
-        .input ('status', sql.NVarChar, estatus)
-        .query(`
-            INSERT INTO informe (cuatrimestre, parcial, fecha, status) 
-            OUTPUT INSERTED.id
-            VALUES (@cuatrimestre, @parcial, @fecha, @status)
-        `);
+        // Verificar si ya hay un informe "Activo" para el usuario
+        const existingReport = await pool.request()
+            .input('id_usuario', sql.Int, id_usuario)
+            .query(`
+                SELECT id_usuario FROM informe 
+                WHERE id_usuario = @id_usuario AND status = 'Activo'
+            `);
 
-        res.json({ message: "ok", id: result.recordset[0].id });
+        if (existingReport.recordset.length > 0) {
+            return res.status(400).json({ message: "Ya tienes un informe activo" });
+        }
+
+        // Insertar el informe y obtener el ID insertado
+        const result = await pool.request()
+            .input('id_usuario', sql.Int, id_usuario)  
+            .input('cuatrimestre', sql.NVarChar, cuatrimestre)
+            .input('parcial', sql.Int, parcial)
+            .input('fecha', sql.DateTime, fecha)
+            .input('status', sql.NVarChar, estatus)
+            .query(`
+                INSERT INTO informe (id_usuario, cuatrimestre, parcial, fecha, status) 
+                OUTPUT INSERTED.id_informe  -- Devuelve el ID recién insertado
+                VALUES (@id_usuario, @cuatrimestre, @parcial, @fecha, @status)
+            `);
+
+        const id_informe = result.recordset[0].id_informe; // Obtener el ID insertado
+
+        res.json({ message: "ok", id_informe });  // Enviar el ID al frontend
     } catch (err) {
         console.error("❌ Error en la inserción:", err);
         res.status(500).send("Internal Server Error");
     }
 }
-        
+
+
+
 
 
 
 async function auntenlogin(req, res) {
     const { empleado, password } = req.body;
     try {
-        let pool = await testConnection(); // ✅ Corrección aquí
+        let pool = await testConnection();
         let result = await pool
             .request()
             .input("nu_empleado", sql.NVarChar, empleado)
@@ -115,13 +137,31 @@ async function auntenlogin(req, res) {
 
         // Comparar contraseña con la almacenada en la base de datos
         const passwordMatch = await bcrypt.compare(password, user.contraseña);
-        console.log(password)
 
         if (!passwordMatch) {
             return res.status(401).json({ error: "Contraseña incorrecta" });
         }
 
-        res.json({ mensaje: "Inicio de sesión exitoso", rol: user.rol });
+            // Buscar el id_informe del usuario con status "Activo"
+        const informeResult = await pool.request()
+        .input('id_usuario', sql.Int, user.id_usuario)
+        .query(`
+            SELECT id_informe FROM informe WHERE id_usuario = @id_usuario AND status = 'Activo'
+        `);
+
+    const id_informe = informeResult.recordset.length > 0 ? informeResult.recordset[0].id_informe : null;
+
+        //  la API devuelve TODOS los datos necesarios
+        res.json({
+            mensaje: "Inicio de sesión exitoso",
+            id_usuario: user.id_usuario,
+            correo: user.correo,
+            nombre: user.nombre,
+            empleado: user.nu_empleado,
+            rol: user.rol,
+            id_informe
+        });
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Error en el servidor" });
