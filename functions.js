@@ -198,13 +198,13 @@
 
 
     async function prueba(req, res){
-        const hash1 = await bcrypt.hash("BCasillas", 10);
+        const hash1 = await bcrypt.hash("LBnoriega", 10);
 
-        const hash2 = await bcrypt.hash("BCasillas", 10);
+        const hash2 = await bcrypt.hash("LBnoriega", 10);
 
         console.log("hasg1", hash1);
         console.log("hasg2", hash2);
-        const result= await bcrypt.compare("BCasillas", hash1);
+        const result= await bcrypt.compare("LBnoriega", hash1);
         console.log("result", result);
         res.json({});
     }
@@ -213,31 +213,175 @@
 
 
 
-    async function registrarUsuario(correo, nombre, nu_empleado, contraseña, rol) {
+    async function registrarUsuario(req, res) {
         try {
-        let pool = await sql.connect(testConnection);
+            let { correo, nombre, nu_empleado, contraseña, rol } = req.body;
+            
+            const pool = await testConnection(); 
+            const saltRounds = 10;
+            const hash = await bcrypt.hash(contraseña, saltRounds);
     
-        // Encriptar la contraseña con bcrypt
-        const saltRounds = 10;
-        const hash = await bcrypt.hash(contraseña, saltRounds);
+            await pool
+                .request()
+                .input("correo", sql.NVarChar, correo)
+                .input("nombre", sql.NVarChar, nombre)
+                .input("nu_empleado", sql.NVarChar, nu_empleado)
+                .input("contraseña", sql.VarChar, hash)
+                .input("rol", sql.VarChar, rol)
+                .query("INSERT INTO Usuarios (correo, nombre, nu_empleado, contraseña, rol) VALUES (@correo, @nombre, @nu_empleado, @contraseña, @rol)");
     
-        await pool
-            .request()
-            .input("correo", sql.NVarChar, correo)
-            .input("nombre", sql.NVarChar, nombre)
-            .input("nu_empleado", sql.NVarChar, nu_empleado)
-            .input("contraseña", sql.VarChar, hash) // Almacenar la contraseña encriptada
-            .input("rol", sql.VarChar, rol)
-            .query(
-            "INSERT INTO Usuarios (correo, nombre, nu_empleado, contraseña, rol) VALUES (@correo, @nombre, @nu_empleado, @contraseña, @rol)"
-            );
-    
-        console.log("Usuario registrado correctamente");
+            res.status(200).json({ mensaje: "Usuario registrado correctamente" });
         } catch (error) {
-        console.error("Error al registrar usuario:", error);
+            console.error("Error al registrar usuario:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
         }
     }
 
+    async function actualizarUsuario(req, res) {
+        const { id } = req.params; // ID del usuario a actualizar
+        const { correo, nombre, nu_empleado, rol, contraseña } = req.body;
+        
+        try {
+            // Obtener la conexión activa
+            const pool = await testConnection();
+            
+            // Si se proporciona contraseña, actualizarla con encriptación
+            if (contraseña) {
+                // Encriptar la contraseña con bcrypt
+                const saltRounds = 10;
+                const hash = await bcrypt.hash(contraseña, saltRounds);
+                
+                // Actualizar todos los campos incluyendo la contraseña
+                await pool.request()
+                    .input("id", sql.Int, id)
+                    .input("correo", sql.NVarChar, correo)
+                    .input("nombre", sql.NVarChar, nombre)
+                    .input("nu_empleado", sql.NVarChar, nu_empleado)
+                    .input("contraseña", sql.VarChar, hash)
+                    .input("rol", sql.VarChar, rol)
+                    .query(`
+                        UPDATE Usuarios 
+                        SET correo = @correo, 
+                            nombre = @nombre, 
+                            nu_empleado = @nu_empleado, 
+                            contraseña = @contraseña, 
+                            rol = @rol 
+                        WHERE id_usuario = @id
+                    `);
+            } else {
+                // Actualizar todos los campos excepto la contraseña
+                await pool.request()
+                    .input("id", sql.Int, id)
+                    .input("correo", sql.NVarChar, correo)
+                    .input("nombre", sql.NVarChar, nombre)
+                    .input("nu_empleado", sql.NVarChar, nu_empleado)
+                    .input("rol", sql.VarChar, rol)
+                    .query(`
+                        UPDATE Usuarios 
+                        SET correo = @correo, 
+                            nombre = @nombre, 
+                            nu_empleado = @nu_empleado, 
+                            rol = @rol 
+                        WHERE id_usuario = @id
+                    `);
+            }
+            
+            res.status(200).json({ mensaje: "Usuario actualizado correctamente" });
+        } catch (error) {
+            console.error("Error al actualizar usuario:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
+
+
+    async function eliminarUsuario(req, res) {
+        const { id } = req.params; // ID del usuario a eliminar
+        
+        try {
+            // Obtener la conexión activa
+            const pool = await testConnection();
+            
+            // Eliminar usuario por ID
+            await pool.request()
+                .input("id", sql.Int, id)
+                .query("DELETE FROM Usuarios WHERE id_usuario = @id");
+            
+            res.status(200).json({ mensaje: "Usuario eliminado correctamente" });
+        } catch (error) {
+            console.error("Error al eliminar usuario:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
+    
+    async function registrarActividad(req, res) {
+        try {
+            let { descripcion, tipo, status, unidad_medida } = req.body;
+    
+            const pool = await testConnection();
+    
+            await pool
+                .request()
+                .input("descripcion", sql.NVarChar, descripcion)
+                .input("tipo", sql.NVarChar, tipo)
+                .input("status", sql.NVarChar, status)
+                .input("unidad_medida", sql.NVarChar, unidad_medida)
+                .query(`
+                    INSERT INTO actividades (descripcion, tipo, status, unidad_medida) 
+                    VALUES (@descripcion, @tipo, @status, @unidad_medida)
+                `);
+    
+            res.status(200).json({ mensaje: "Actividad registrada correctamente" });
+        } catch (error) {
+            console.error("Error al registrar actividad:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
+    
+    async function actualizarActividad(req, res) {
+        const { id } = req.params; // ID de la actividad a actualizar
+        const { descripcion, tipo, status, unidad_medida } = req.body;
+    
+        try {
+            const pool = await testConnection();
+    
+            await pool.request()
+                .input("id", sql.Int, id)
+                .input("descripcion", sql.NVarChar, descripcion)
+                .input("tipo", sql.NVarChar, tipo)
+                .input("status", sql.NVarChar, status)
+                .input("unidad_medida", sql.NVarChar, unidad_medida)
+                .query(`
+                    UPDATE actividades 
+                    SET descripcion = @descripcion, 
+                        tipo = @tipo, 
+                        status = @status, 
+                        unidad_medida = @unidad_medida 
+                    WHERE id_actividad = @id
+                `);
+    
+            res.status(200).json({ mensaje: "Actividad actualizada correctamente" });
+        } catch (error) {
+            console.error("Error al actualizar actividad:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
+    
+    async function eliminarActividad(req, res) {
+        const { id } = req.params; // ID de la actividad a eliminar
+    
+        try {
+            const pool = await testConnection();
+    
+            await pool.request()
+                .input("id", sql.Int, id)
+                .query("DELETE FROM actividades WHERE id_actividad = @id");
+    
+            res.status(200).json({ mensaje: "Actividad eliminada correctamente" });
+        } catch (error) {
+            console.error("Error al eliminar actividad:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
 
 
 
@@ -295,5 +439,10 @@
         inserinforme,
         auntenlogin,
         registrarUsuario,
+        actualizarUsuario,
+        eliminarUsuario,
+        registrarActividad,
+        actualizarActividad,
+        eliminarActividad,
         prueba
     }
