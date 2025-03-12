@@ -139,6 +139,108 @@
         }
     }
 
+    async function getActividadesByInforme(req, res) {
+        const { id_informe } = req.params;
+    
+        try {
+            // Obtener la conexión activa
+            const pool = await testConnection();
+            
+            const result = await pool.request()
+                .input('id_informe', sql.Int, id_informe)
+                .query(`
+                    SELECT * FROM informe_actividad 
+                    WHERE id_informe = @id_informe
+                `);
+    
+            res.status(200).json(result.recordset);
+    
+        } catch (err) {
+            console.error("❌ Error al obtener registros:", err);
+            res.status(500).send("Internal Server Error");
+        }
+    }
+    
+
+// Función para actualizar un registro existente
+async function updateInformeActividad(req, res) {
+    const { id_informe, id_actividad } = req.params;
+    const { valor, evidencia, observacion, fecha, hora } = req.body;
+
+    try {
+        // Obtener la conexión activa
+        const pool = await testConnection();
+        
+        // Crear un objeto Date para manejar fecha/hora
+        const ahora = new Date();
+        
+        // Si no se proporciona fecha, usar la fecha actual
+        const fechaActual = fecha || ahora.toISOString().split('T')[0];
+        
+        // Para la hora, usamos el formato correcto para SQL Server TIME
+        let horaActual;
+        if (hora) {
+            horaActual = hora; // Usar la hora proporcionada
+        } else {
+            // Extraer solo la parte de la hora y formatearla para SQL Server
+            const hh = ahora.getHours().toString().padStart(2, '0');
+            const mm = ahora.getMinutes().toString().padStart(2, '0');
+            const ss = ahora.getSeconds().toString().padStart(2, '0');
+            horaActual = `${hh}:${mm}:${ss}`;
+        }
+
+        await pool.request()
+            .input('id_informe', sql.Int, id_informe)
+            .input('id_actividad', sql.Int, id_actividad)
+            .input('valor', sql.Int, valor)
+            .input('evidencia', sql.NVarChar, evidencia)
+            .input('observacion', sql.NVarChar, observacion)
+            .input('fecha', sql.Date, fechaActual)
+            .query(`
+                UPDATE informe_actividad 
+                SET valor = @valor,
+                    evidencia = @evidencia,
+                    observacion = @observacion,
+                    fecha = @fecha,
+                    hora = '${horaActual}'
+                WHERE id_informe = @id_informe AND id_actividad = @id_actividad
+            `);
+
+        res.status(200).json({ message: "Registro actualizado correctamente." });
+
+    } catch (err) {
+        console.error("❌ Error al actualizar registro:", err);
+        res.status(500).send("Internal Server Error");
+    }
+}
+
+// Función para verificar si un registro ya existe
+async function checkInformeActividadExists(req, res) {
+    const { id_informe, id_actividad } = req.params;
+
+    try {
+        // Obtener la conexión activa
+        const pool = await testConnection();
+        
+        const result = await pool.request()
+            .input('id_informe', sql.Int, id_informe)
+            .input('id_actividad', sql.Int, id_actividad)
+            .query(`
+                SELECT COUNT(*) as count 
+                FROM informe_actividad 
+                WHERE id_informe = @id_informe AND id_actividad = @id_actividad
+            `);
+
+        const exists = result.recordset[0].count > 0;
+        res.status(200).json({ exists });
+
+    } catch (err) {
+        console.error("❌ Error al verificar registro:", err);
+        res.status(500).send("Internal Server Error");
+    }
+}
+
+
 
 
 
@@ -183,6 +285,7 @@
                 nombre: user.nombre,
                 empleado: user.nu_empleado,
                 rol: user.rol,
+                carrera: user.carrera,
                 id_informe
             });
 
@@ -193,7 +296,49 @@
     }
 
 
-
+    async function actualizarid(req, res) {
+        const { id } = req.params; // ID del informe a actualizar
+        const { status } = req.body;
+        
+        // Validar que se proporcione un status
+        if (!status) {
+            return res.status(400).json({ error: "El campo status es requerido" });
+        }
+        
+        try {
+            // Obtener la conexión activa
+            const pool = await testConnection();
+            
+            // Actualizar el status del informe
+            await pool.request()
+                .input("id", sql.Int, id)
+                .input("status", sql.VarChar, status)
+                .query(`
+                    UPDATE Informe
+                    SET status = @status,
+                        fecha_finalizacion = GETDATE() 
+                    WHERE id_informe = @id
+                `);
+            
+            // Verificar si se actualizó correctamente (opcional)
+            const verificacion = await pool.request()
+                .input("id", sql.Int, id)
+                .query("SELECT * FROM Informe WHERE id_informe = @id");
+                
+            if (verificacion.recordset.length === 0) {
+                return res.status(404).json({ error: "Informe no encontrado" });
+            }
+            
+            res.status(200).json({ 
+                mensaje: "Informe actualizado correctamente",
+                status: status,
+                informe: verificacion.recordset[0]
+            });
+        } catch (error) {
+            console.error("Error al actualizar el informe:", error);
+            res.status(500).json({ error: "Error interno del servidor" });
+        }
+    }
 
 
 
@@ -215,7 +360,7 @@
 
     async function registrarUsuario(req, res) {
         try {
-            let { correo, nombre, nu_empleado, contraseña, rol } = req.body;
+            let { correo, nombre, nu_empleado, contraseña, rol, carrera} = req.body;
             
             const pool = await testConnection(); 
             const saltRounds = 10;
@@ -228,7 +373,8 @@
                 .input("nu_empleado", sql.NVarChar, nu_empleado)
                 .input("contraseña", sql.VarChar, hash)
                 .input("rol", sql.VarChar, rol)
-                .query("INSERT INTO Usuarios (correo, nombre, nu_empleado, contraseña, rol) VALUES (@correo, @nombre, @nu_empleado, @contraseña, @rol)");
+                .input("carrera", sql.NVarChar, carrera)
+                .query("INSERT INTO Usuarios (correo, nombre, nu_empleado, contraseña, rol, carrera) VALUES (@correo, @nombre, @nu_empleado, @contraseña, @rol, @carrera)");
     
             res.status(200).json({ mensaje: "Usuario registrado correctamente" });
         } catch (error) {
@@ -239,7 +385,7 @@
 
     async function actualizarUsuario(req, res) {
         const { id } = req.params; // ID del usuario a actualizar
-        const { correo, nombre, nu_empleado, rol, contraseña } = req.body;
+        const { correo, nombre, nu_empleado, rol, contraseña, carrera} = req.body;
         
         try {
             // Obtener la conexión activa
@@ -259,13 +405,15 @@
                     .input("nu_empleado", sql.NVarChar, nu_empleado)
                     .input("contraseña", sql.VarChar, hash)
                     .input("rol", sql.VarChar, rol)
+                    .input("carrera", sql.NVarChar, carrera)
                     .query(`
                         UPDATE Usuarios 
                         SET correo = @correo, 
                             nombre = @nombre, 
                             nu_empleado = @nu_empleado, 
                             contraseña = @contraseña, 
-                            rol = @rol 
+                            rol = @rol,
+                            carrera = @carrera
                         WHERE id_usuario = @id
                     `);
             } else {
@@ -276,12 +424,14 @@
                     .input("nombre", sql.NVarChar, nombre)
                     .input("nu_empleado", sql.NVarChar, nu_empleado)
                     .input("rol", sql.VarChar, rol)
+                    .input("carrera", sql.NVarChar, carrera)
                     .query(`
                         UPDATE Usuarios 
                         SET correo = @correo, 
                             nombre = @nombre, 
                             nu_empleado = @nu_empleado, 
-                            rol = @rol 
+                            rol = @rol,
+                            carrera = @carrera
                         WHERE id_usuario = @id
                     `);
             }
@@ -365,6 +515,7 @@
             res.status(500).json({ error: "Error interno del servidor" });
         }
     }
+
     
     async function eliminarActividad(req, res) {
         const { id } = req.params; // ID de la actividad a eliminar
@@ -437,6 +588,10 @@
         selectBytipo,
         insertinfoacti,
         inserinforme,
+        actualizarid,
+        getActividadesByInforme,
+        updateInformeActividad,
+        checkInformeActividadExists,
         auntenlogin,
         registrarUsuario,
         actualizarUsuario,

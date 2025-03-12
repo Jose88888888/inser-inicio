@@ -16,6 +16,12 @@ app.get("/api/actividades/:table/:tipo", functions.selectBytipo);
 app.post("/api/informeactividad/", functions.insertinfoacti);
 app.post("/api/informes", functions.inserinforme);
 app.post("/api/login", functions.auntenlogin);
+app.put("/api/informes/actualizar/:id", functions.actualizarid);
+
+
+app.get("/api/informeactividad/informe/:id_informe", functions.getActividadesByInforme)
+app.get("/api/informeactividad/check/:id_informe/:id_actividad", functions.checkInformeActividadExists)
+app.put("/api/informeactividad/:id_informe/:id_actividad", functions.updateInformeActividad);
 
 
 app.post("/api/insert/register", functions.registrarUsuario);
