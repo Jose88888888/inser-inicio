@@ -32,6 +32,8 @@ app.post("/api/insert/actividad", functions.registrarActividad);
 app.put("/api/admin/updateacti/:id", functions.actualizarActividad);
 app.delete("/api/admin/deleteacti/:id", functions.eliminarActividad);
 
+app.post("/api/update/informes/finalizar-cuatrimestre", functions.finalizarCuatrimestre);
+
 app.get("/prueba", functions.prueba);
 
 app._router.stack.forEach((r) => {

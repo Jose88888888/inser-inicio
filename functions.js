@@ -535,6 +535,83 @@ async function checkInformeActividadExists(req, res) {
     }
 
 
+ 
+    async function finalizarCuatrimestre(req, res) {
+        const { cuatrimestre, informesIds } = req.body;
+        // Estado fijo cuando se presiona el botón
+        const nuevoEstado = "finalizado por admin";
+    
+        try {
+            // Validar que se proporcionen todos los datos necesarios
+            if (!cuatrimestre || !informesIds || !Array.isArray(informesIds) || informesIds.length === 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Datos incompletos. Se requiere cuatrimestre y un array de informesIds." 
+                });
+            }
+    
+            // Obtener la conexión activa
+            const pool = await testConnection();
+            
+            // Crear parámetros para cada ID en el array
+            const parameters = informesIds.map((id, index) => {
+                return {
+                    name: `id${index}`,
+                    value: id,
+                    type: sql.Int
+                };
+            });
+            
+            // Construir la consulta con parámetros nombrados
+            let query = 'UPDATE informe SET status = @nuevoEstado, fecha_finalizacion = @fechaFinalizacion WHERE cuatrimestre = @cuatrimestre AND id_informe IN (';
+            
+            // Agregar los parámetros de ID a la consulta
+            query += parameters.map(p => `@${p.name}`).join(',');
+            query += ')';
+            
+            // Crear la solicitud
+            const request = pool.request();
+            
+            // Agregar parámetros de estado y cuatrimestre
+            request.input('nuevoEstado', sql.VarChar, nuevoEstado);
+            request.input('cuatrimestre', sql.VarChar, cuatrimestre);
+            
+            // Fecha actual para la fecha de finalización
+            const fechaActual = new Date().toISOString().split('T')[0];
+            request.input('fechaFinalizacion', sql.Date, fechaActual);
+            
+            // Agregar todos los parámetros de ID
+            parameters.forEach(param => {
+                request.input(param.name, param.type, param.value);
+            });
+            
+            // Ejecutar la consulta
+            const result = await request.query(query);
+            
+            // Verificar si se actualizaron registros
+            if (result.rowsAffected[0] === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No se encontraron informes para actualizar con los criterios proporcionados"
+                });
+            }
+            
+            // Respuesta exitosa
+            return res.status(200).json({
+                success: true,
+                message: `Se han finalizado ${result.rowsAffected[0]} informes del cuatrimestre ${cuatrimestre}`,
+                affectedRows: result.rowsAffected[0]
+            });
+    
+        } catch (error) {
+            console.error("❌ Error al finalizar cuatrimestre:", error);
+            res.status(500).json({
+                success: false,
+                message: "Error interno del servidor",
+                error: error.message
+            });
+        }
+    }
 
 
     /*async function selectAll(req, res){
@@ -593,6 +670,7 @@ async function checkInformeActividadExists(req, res) {
         updateInformeActividad,
         checkInformeActividadExists,
         auntenlogin,
+        finalizarCuatrimestre,
         registrarUsuario,
         actualizarUsuario,
         eliminarUsuario,
