@@ -6,20 +6,34 @@
 
     async function selectAll(req, res) {
         const { table } = req.params;
-
+        const { id_usuario } = req.query; // Obtenemos el id_usuario de los query params
+    
         try {
             // Obtener la conexión activa
             const pool = await testConnection();
-            // Consulta para traer toda la tabla (evitar SQL Injection con identificadores dinámicos)
-            const result = await pool.request().query(`SELECT * FROM ${table}`);
-
+            
+            let query = `SELECT * FROM ${table}`;
+            
+            // Si se proporciona id_usuario, filtrar por ese valor
+            if (id_usuario) {
+                query += ` WHERE id_usuario = @id_usuario`;
+            }
+            
+            const request = pool.request();
+            
+            // Añadir el parámetro si es necesario (esto evita SQL injection)
+            if (id_usuario) {
+                request.input('id_usuario', id_usuario);
+            }
+            
+            const result = await request.query(query);
+    
             res.json(result.recordset);
         } catch (err) {
             console.error("❌ Error en la consulta:", err);
             res.status(500).send("Internal Server Error");
         }
     }
-
 
 
     async function selectBytipo(req, res) {
