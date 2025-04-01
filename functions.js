@@ -61,47 +61,45 @@
 
 
 
-
     async function insertinfoacti(req, res) {
-        const { id_informe, id_actividad, valor, evidencia, observacion, fecha, hora } = req.body;
-
+        const { id_informe, id_actividad, valor, observacion, fecha, hora } = req.body;
+        
+        // Guardar el nombre original del archivo
+        const evidencia = req.file 
+            ? req.file.originalname  // Nombre original del archivo 
+            : null; 
+    
         try {
-            // Obtener la conexión activa
             const pool = await testConnection();
-            
-            // Crear un objeto Date para manejar fecha/hora
             const ahora = new Date();
-            
-            // Si no se proporciona fecha, usar la fecha actual
             const fechaActual = fecha || ahora.toISOString().split('T')[0];
-            
-            // Para la hora, usamos el formato correcto para SQL Server TIME
+    
             let horaActual;
             if (hora) {
-                horaActual = hora; // Usar la hora proporcionada
+                horaActual = hora;
             } else {
-                // Extraer solo la parte de la hora y formatearla para SQL Server
                 const hh = ahora.getHours().toString().padStart(2, '0');
                 const mm = ahora.getMinutes().toString().padStart(2, '0');
                 const ss = ahora.getSeconds().toString().padStart(2, '0');
                 horaActual = `${hh}:${mm}:${ss}`;
             }
-
+    
             await pool.request()
                 .input('id_informe', sql.Int, id_informe)
                 .input('id_actividad', sql.Int, id_actividad)
                 .input('valor', sql.Int, valor)
-                .input('evidencia', sql.NVarChar, evidencia)
+                .input('evidencia', sql.NVarChar, evidencia) // Guarda el nombre original
                 .input('observacion', sql.NVarChar, observacion)
                 .input('fecha', sql.Date, fechaActual)
-                // No especificamos el tipo, dejamos que sql.js infiera correctamente
                 .query(`
                     INSERT INTO informe_actividad (id_informe, id_actividad, valor, evidencia, observacion, fecha, hora)
                     VALUES (@id_informe, @id_actividad, @valor, @evidencia, @observacion, @fecha, '${horaActual}')
                 `);
-
-            res.status(201).json({ message: "Registro insertado correctamente." });
-
+    
+            res.status(201).json({ 
+                message: "Registro insertado correctamente.", 
+                fileName: evidencia // Devuelve el nombre original del archivo
+            });
         } catch (err) {
             console.error("❌ Error en la inserción:", err);
             res.status(500).send("Internal Server Error");
@@ -174,59 +172,64 @@
             res.status(500).send("Internal Server Error");
         }
     }
+
+
+
+    async function updateInformeActividad(req, res) {
+        const { id_informe, id_actividad } = req.params;
+        const { valor, observacion, fecha, hora } = req.body;
+        const evidencia = req.file ? req.file.path : null; // Ruta del nuevo archivo si se subió
     
-
-// Función para actualizar un registro existente
-async function updateInformeActividad(req, res) {
-    const { id_informe, id_actividad } = req.params;
-    const { valor, evidencia, observacion, fecha, hora } = req.body;
-
-    try {
-        // Obtener la conexión activa
-        const pool = await testConnection();
-        
-        // Crear un objeto Date para manejar fecha/hora
-        const ahora = new Date();
-        
-        // Si no se proporciona fecha, usar la fecha actual
-        const fechaActual = fecha || ahora.toISOString().split('T')[0];
-        
-        // Para la hora, usamos el formato correcto para SQL Server TIME
-        let horaActual;
-        if (hora) {
-            horaActual = hora; // Usar la hora proporcionada
-        } else {
-            // Extraer solo la parte de la hora y formatearla para SQL Server
-            const hh = ahora.getHours().toString().padStart(2, '0');
-            const mm = ahora.getMinutes().toString().padStart(2, '0');
-            const ss = ahora.getSeconds().toString().padStart(2, '0');
-            horaActual = `${hh}:${mm}:${ss}`;
-        }
-
-        await pool.request()
-            .input('id_informe', sql.Int, id_informe)
-            .input('id_actividad', sql.Int, id_actividad)
-            .input('valor', sql.Int, valor)
-            .input('evidencia', sql.NVarChar, evidencia)
-            .input('observacion', sql.NVarChar, observacion)
-            .input('fecha', sql.Date, fechaActual)
-            .query(`
+        try {
+            const pool = await testConnection();
+            const ahora = new Date();
+            const fechaActual = fecha || ahora.toISOString().split('T')[0];
+    
+            let horaActual;
+            if (hora) {
+                horaActual = hora;
+            } else {
+                const hh = ahora.getHours().toString().padStart(2, '0');
+                const mm = ahora.getMinutes().toString().padStart(2, '0');
+                const ss = ahora.getSeconds().toString().padStart(2, '0');
+                horaActual = `${hh}:${mm}:${ss}`;
+            }
+    
+            let query = `
                 UPDATE informe_actividad 
                 SET valor = @valor,
-                    evidencia = @evidencia,
                     observacion = @observacion,
                     fecha = @fecha,
                     hora = '${horaActual}'
-                WHERE id_informe = @id_informe AND id_actividad = @id_actividad
-            `);
-
-        res.status(200).json({ message: "Registro actualizado correctamente." });
-
-    } catch (err) {
-        console.error("❌ Error al actualizar registro:", err);
-        res.status(500).send("Internal Server Error");
+            `;
+    
+            if (evidencia) {
+                query += `, evidencia = @evidencia`;
+            }
+    
+            query += ` WHERE id_informe = @id_informe AND id_actividad = @id_actividad`;
+    
+            const request = pool.request()
+                .input('id_informe', sql.Int, id_informe)
+                .input('id_actividad', sql.Int, id_actividad)
+                .input('valor', sql.Int, valor)
+                .input('observacion', sql.NVarChar, observacion)
+                .input('fecha', sql.Date, fechaActual);
+    
+            if (evidencia) {
+                request.input('evidencia', sql.NVarChar, evidencia);
+            }
+    
+            await request.query(query);
+    
+            res.status(200).json({ message: "Registro actualizado correctamente.", filePath: evidencia });
+    
+        } catch (err) {
+            console.error("❌ Error al actualizar registro:", err);
+            res.status(500).send("Internal Server Error");
+        }
     }
-}
+    
 
 // Función para verificar si un registro ya existe
 async function checkInformeActividadExists(req, res) {
